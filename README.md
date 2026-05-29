@@ -9,9 +9,14 @@ Klienten håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256
 ## Forudsætninger
 
 - Python 3.12+
-- Et gyldigt **OCES3-organisationscertifikat** (`Udbyder VOCES3`) registreret hos STIL
-- Et **udbydersystem-ID** (`USxxxxxx`) tildelt af STIL
-- Godkendte **dataaftaler** i STILs selvbetjeningsportal for de institutioner og eksporttyper der ønskes adgang til
+- Et **udbydersystem-ID** hos STIL 
+- Et gyldigt **OCES3-organisationscertifikat** tilknyttet udbydersystemet 
+- Godkendte **dataaftaler** for udbydersystemet i STILs selvbetjeningsportal til de institutioner og eksporttyper der ønskes adgang til
+
+Opret udbydersystem:    [Styrelsen for IT og Lærings vidensbase: Bliv oprettet som udbyder](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139435/Bliv+oprettet+som+udbyder)
+Opret organisationscertifikat:  [MitID erhverv: Administrér organisations- og systemcertifikater](https://www.mitid-erhverv.dk/sadan-bruger-du-mitid-erhverv/administrer-certifikater/administrer-organisations-og-systemcertifikater/)
+Tilknyt certifikat:     [Styrelsen for IT og Lærings vidensbase: Tilføj certifikat](https://viden.stil.dk/spaces/OFFTILSLU/pages/343441603/Tilf%C3%B8j+certifikat)
+Anmod om dataadgang:    [Styrelsen for IT og Lærings vidensbase: Anmod om data fra eller på vegne af institutioner](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139418/Anmodning+om+data+fra+eller+p%C3%A5+vegne+af+institutioner+Dataadgange)
 
 ---
 
@@ -45,13 +50,13 @@ CERT_FILE=C:\Users\dig\.credentials\dit-certifikat.cer
 KEY_FILE=C:\Users\dig\.credentials\din-private.key
 
 # Udbydersystem-ID registreret hos STIL
-UDBYDER_SYSTEM_ID=USxxxxxx
+UDBYDER_SYSTEM_ID=ABxxxxxx
 
 # Standard-institutionsliste (bruges når ingen instnr angives på kommandolinjen)
 INSTITUTIONS=101088,101155
 ```
 
-> **Vigtigt:** Certifikatet og den private nøgle bør ligge **uden for projektmappen** og aldrig committes til git. `.env` er allerede tilføjet til `.gitignore`.
+> **Vigtigt:** Certifikatet og den private nøgle bør ligge **offline** og **uden for projektmappen**.
 
 ---
 
@@ -79,7 +84,7 @@ python main.py <funktion> [instnr …] [--output MAPPE]
 
 ```bash
 # Test forbindelsen
-python main.py hello
+python main.py hello #OBS! STIL's server returnerer konsekvent HTTP 500 på den operation. Brug i stedet aftaler-fuld eller aftaler-lille til at teste at forbindelsen virker.
 
 # Hent fuld-myndighed for specifikke institutioner
 python main.py fuld-myndighed 101088 101155
