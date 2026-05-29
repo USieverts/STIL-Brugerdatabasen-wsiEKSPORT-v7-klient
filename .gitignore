@@ -1,0 +1,10 @@
+# Miljøvariabler — må aldrig committes
+.env
+
+# Eksportfiler - må aldrig comittes
+eksport_*.xml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
