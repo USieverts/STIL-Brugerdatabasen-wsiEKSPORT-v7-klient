@@ -9,14 +9,13 @@ Klienten håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256
 ## Forudsætninger
 
 - Python 3.12+
-- Et **udbydersystem-ID** hos STIL 
-- Et gyldigt **OCES3-organisationscertifikat** tilknyttet udbydersystemet 
+- Et **udbydersystem-ID** hos STIL
+  - [Bliv oprettet som udbyder](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139435/Bliv+oprettet+som+udbyder)
+- Et gyldigt **OCES3-organisationscertifikat** tilknyttet udbydersystemet
+  - [Administrér organisations- og systemcertifikater](https://www.mitid-erhverv.dk/sadan-bruger-du-mitid-erhverv/administrer-certifikater/administrer-organisations-og-systemcertifikater/)
+  - [Tilføj certifikat til udbydersystem](https://viden.stil.dk/spaces/OFFTILSLU/pages/343441603/Tilf%C3%B8j+certifikat)
 - Godkendte **dataaftaler** for udbydersystemet i STILs selvbetjeningsportal til de institutioner og eksporttyper der ønskes adgang til
-
-Opret udbydersystem:    [Styrelsen for IT og Lærings vidensbase: Bliv oprettet som udbyder](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139435/Bliv+oprettet+som+udbyder)
-Opret organisationscertifikat:  [MitID erhverv: Administrér organisations- og systemcertifikater](https://www.mitid-erhverv.dk/sadan-bruger-du-mitid-erhverv/administrer-certifikater/administrer-organisations-og-systemcertifikater/)
-Tilknyt certifikat:     [Styrelsen for IT og Lærings vidensbase: Tilføj certifikat](https://viden.stil.dk/spaces/OFFTILSLU/pages/343441603/Tilf%C3%B8j+certifikat)
-Anmod om dataadgang:    [Styrelsen for IT og Lærings vidensbase: Anmod om data fra eller på vegne af institutioner](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139418/Anmodning+om+data+fra+eller+p%C3%A5+vegne+af+institutioner+Dataadgange)
+  - [Anmod om dataadgang](https://viden.stil.dk/spaces/OFFTILSLU/pages/299139418/Anmodning+om+data+fra+eller+p%C3%A5+vegne+af+institutioner+Dataadgange)
 
 ---
 
