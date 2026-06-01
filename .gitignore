@@ -4,6 +4,9 @@
 # Eksportfiler - må aldrig comittes
 eksport_*.xml
 
+# Logfiler
+*.log
+
 # Python
 .venv/
 __pycache__/

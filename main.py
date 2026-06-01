@@ -29,7 +29,7 @@ from lxml import etree
 import requests
 
 # ---------------------------------------------------------------------------
-# Konfiguration
+# Konfiguration start - environmentvariabler
 # ---------------------------------------------------------------------------
 
 load_dotenv()
@@ -55,6 +55,10 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Konfiguration fortsat — certifikatfiler, udbydersystem-id og endpoint
+# ---------------------------------------------------------------------------
 _cert_env = os.getenv("CERT_FILE")
 _key_env  = os.getenv("KEY_FILE")
 if not _cert_env or not _key_env:
@@ -97,6 +101,7 @@ _BASE64BIN  = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-mess
 
 
 def _q(prefix: str, local: str) -> str:
+    """Returnerer det fuldt kvalificerede XML-elementnavn: {namespace-uri}lokalnavn."""
     return f"{{{_NS[prefix]}}}{local}"
 
 
@@ -105,6 +110,7 @@ def _q(prefix: str, local: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _new_id(prefix: str) -> str:
+    """Genererer et unikt wsu:Id på formen 'Præfiks-<uuid4>'."""
     return f"{prefix}-{uuid.uuid4()}"
 
 
@@ -125,6 +131,7 @@ def _exc_c14n_in_context(element: etree._Element, inclusive_prefixes: list[str] 
 
 
 def _sha256_b64(data: bytes) -> str:
+    """Beregner SHA256-digest af data og returnerer resultatet base64-kodet."""
     return base64.b64encode(hashlib.sha256(data).digest()).decode()
 
 
@@ -149,6 +156,7 @@ def _tls_cert(cert_der: bytes, key_pem: bytes):
 
 
 def _find_id(root: etree._Element, wsu_id: str) -> etree._Element:
+    """Finder et element i udgående envelope ud fra dets wsu:Id-attribut."""
     hits = root.xpath(
         f"//*[@wsu:Id='{wsu_id}']", namespaces={"wsu": _NS["wsu"]}
     )
@@ -164,6 +172,8 @@ def _find_id(root: etree._Element, wsu_id: str) -> etree._Element:
 def _build_envelope(
     cert_der: bytes, action: str, body_element: etree._Element
 ) -> tuple[etree._Element, dict[str, str]]:
+    """Bygger en SOAP 1.2-envelope med WS-Addressing og WS-Security headers.
+    Returnerer envelope-elementet og en dict med wsu:Id-værdier for de elementer der skal signeres."""
     now        = datetime.now(timezone.utc).replace(microsecond=0)
     ts_created = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     ts_expires = (now + timedelta(seconds=300)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -219,6 +229,7 @@ def _build_envelope(
 # ---------------------------------------------------------------------------
 
 def _ds_ref(uri: str, digest: str) -> etree._Element:
+    """Opretter et ds:Reference-element med eksklusiv C14N-transform og SHA256-digest."""
     ref = etree.Element(_q("ds", "Reference"))
     ref.set("URI", uri)
     t = etree.SubElement(
@@ -234,6 +245,7 @@ def _ds_ref(uri: str, digest: str) -> etree._Element:
 def _apply_signature(
     env: etree._Element, ids: dict[str, str], private_key
 ) -> None:
+    """Beregner digests, signerer SignedInfo med RSA-SHA256 og indsætter ds:Signature i wsse:Security."""
     sign_keys = ["Body", "Timestamp", "MessageID", "UdbydersystemId"]
     refs = [
         _ds_ref(
@@ -271,6 +283,7 @@ def _apply_signature(
 # ---------------------------------------------------------------------------
 
 def _load_ca_cert(path: Path) -> x509.Certificate:
+    """Indlæser et PEM-kodet CA-certifikat fra disk."""
     return x509.load_pem_x509_certificate(path.read_bytes())
 
 
@@ -381,6 +394,8 @@ def verify_response_signature(xml_text: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _post(envelope: etree._Element, action: str, cert_der: bytes, key_pem: bytes) -> str:
+    """Serialiserer og sender SOAP-envelope via HTTPS med TLS-klientcertifikat.
+    Verificerer WS-Security-signaturen på svaret. Returnerer svarets XML som streng."""
     xml_bytes = etree.tostring(envelope, xml_declaration=True, encoding="UTF-8")
     operation = action.rsplit("/", 1)[-1]
     log.debug("Sender %s (%d bytes) → %s", operation, len(xml_bytes), ENDPOINT)
@@ -515,7 +530,7 @@ _FUNKTIONER: dict[str, tuple] = {
     "aftaler-fuld-myndighed": (hent_data_aftaler_fuld_myndighed, False),
 }
 
-# Lets'ago!
+# OK, lets'ago!
 if __name__ == "__main__":
     import argparse
 
@@ -536,10 +551,10 @@ Tilgængelige funktioner:
   aftaler-fuld-myndighed     Dataaftaler for fuld myndighed
 
 En eller flere institutionsnumre kan angives på kommandolinjen eller som standard
-i .env via: INSTITUTIONS=123456,234567,345678
+i .env via: INSTITUTIONS=101155,101126,101088
 
 Eksempler:
-  python main.py fuld-myndighed 123456 234567
+  python main.py fuld-myndighed 101155 101126
   python main.py fuld-myndighed          # bruger INSTITUTIONS fra .env
   python main.py aftaler-fuld
   python main.py hello
@@ -570,6 +585,7 @@ Eksempler:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def gem(filnavn: str, raw: str) -> None:
+        """Parser XML-svaret, pretty-printer det og gemmer det som UTF-8-fil i output_dir."""
         tree   = etree.fromstring(raw.encode())
         pretty = etree.tostring(tree, pretty_print=True, encoding="unicode")
         sti    = output_dir / filnavn
@@ -577,7 +593,7 @@ Eksempler:
         log.info("Gemt: %s (%d KB)", sti, len(pretty) // 1024)
 
     def kald(label: str, kald_fn, *kald_args) -> bool:
-        """Udfør ét servicekald og håndtér fejl pænt. Returnerer True ved succes."""
+        """Udfør ét servicekald og håndtér fejl. Returnerer True ved succes."""
         try:
             gem(label, kald_fn(*kald_args))
             return True

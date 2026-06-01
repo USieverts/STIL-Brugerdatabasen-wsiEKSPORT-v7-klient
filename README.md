@@ -122,9 +122,9 @@ LOG_LEVEL=INFO
 
 | Niveau | Hvad logges |
 |---|---|
-| `ERROR` | HTTP-fejl, signaturverifikation fejlet, netværksfejl |
 | `INFO` | Operationsnavn, HTTP-statuskode, svartid, filsti og størrelse |
 | `DEBUG` | Requeststørrelse, certifikat-CN og udløbsdato, certifikatkæde, digest- og signaturverifikation |
+| `ERROR` | HTTP-fejl, signaturverifikations fejl, netværksfejl |
 
 Eksempel på INFO-output:
 ```
@@ -137,11 +137,11 @@ Eksempel på INFO-output:
 
 ## Certifikat og nøgle
 
-OCES3-certifikater til webserviceadgang udstedes af **Den Danske Stat** via [Nets/MitID Erhverv](https://erhverv.mitid.dk). Certifikatet skal registreres hos STIL før brug.
+OCES3-certifikater til webserviceadgang udstedes af **Den Danske Stat** via [Nets/MitID Erhverv](https://erhverv.mitid.dk). 
 
 Se STILs vejledning: [Certifikatsikkerhed](https://viden.stil.dk/spaces/INFRA2/pages/314540219/Certifikatsikkerhed)
 
-Den private nøgle genereres lokalt ved certifikatansøgningen og leveres typisk i en PKCS12-fil (`.pfx`/`.p12`). Nøglen kan udpakkes til ukrypteret PEM-format med OpenSSL:
+Den private nøgle genereres ved certifikatansøgningen og leveres typisk i en PKCS12-fil (`.pfx`/`.p12`). Nøglen kan udpakkes til ukrypteret PEM-format med OpenSSL:
 
 ```bash
 openssl pkcs12 -in certifikat.pfx -nocerts -nodes -out private.key
@@ -158,7 +158,9 @@ Hvert SOAP-svar fra STIL verificeres automatisk, inden det behandles. Verifikati
 2. **Digest-værdier** — SHA256-digest for hvert signeret element (Body, Timestamp, MessageID m.fl.) beregnes og sammenlignes med de værdier serveren har angivet i signaturen.
 3. **RSA-SHA256 signatur** — `SignatureValue` verificeres med serverens offentlige nøgle mod det kanoniserede `SignedInfo`-element.
 
-Hvis et af trinene fejler, afbrydes kaldet med en fejlmeddelelse og exit-kode 1. CA-certifikaterne hentes fra [ca1.gov.dk](https://www.ca1.gov.dk/certifikater/) og kan fornyes ved at erstatte filerne i `ca/`.
+Hvis et af trinene fejler, afbrydes kaldet med en fejlmeddelelse og exit-kode 1. 
+
+CA-certifikaterne hentes fra [ca1.gov.dk](https://www.ca1.gov.dk/certifikater/) og kan fornyes ved at erstatte filerne i `ca/`.
 
 ---
 
