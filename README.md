@@ -2,7 +2,7 @@
 
 Python-klient til STILs [Brugerdatabasen BPI-webservice wsiEKSPORT v7](https://viden.stil.dk/spaces/INFRA2/pages/2360658/Unilogin+SkoleGrunddata+BPI-webservices).
 
-Klienten håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256, eksklusiv C14N) og understøtter alle ni operationer i webservicen.
+Klienten håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256, eksklusiv C14N) og understøtter alle ni operationer i webservicen. Hvert svar verificeres automatisk mod STILs OCES3-certifikatkæde.
 
 ---
 
@@ -102,6 +102,33 @@ Output gemmes som pretty-printed XML med filnavnet `eksport_<funktion>_<instnr>.
 
 ---
 
+## Logging
+
+Klienten logger til konsollen via Pythons standard `logging`-modul. Adfærden styres med to valgfrie `.env`-variabler:
+
+```ini
+# Logniveau: DEBUG, INFO, WARNING eller ERROR (standard: INFO)
+LOG_LEVEL=INFO
+
+# Valgfri logfil — udelad for kun at logge til konsollen
+# LOG_FILE=stileksport.log
+```
+
+| Niveau | Hvad logges |
+|---|---|
+| `ERROR` | HTTP-fejl, signaturverifikation fejlet, netværksfejl |
+| `INFO` | Operationsnavn, HTTP-statuskode, svartid, filsti og størrelse |
+| `DEBUG` | Requeststørrelse, certifikat-CN og udløbsdato, certifikatkæde, digest- og signaturverifikation |
+
+Eksempel på INFO-output:
+```
+2026-06-01 11:35:20 INFO     Henter 'fuld-myndighed' for institution 101088
+2026-06-01 11:35:21 INFO     eksporterXmlFuldMyndighed      HTTP 200    1.23s  245 KB
+2026-06-01 11:35:21 INFO     Gemt: eksport_fuld-myndighed_101088.xml (312 KB)
+```
+
+---
+
 ## Certifikat og nøgle
 
 OCES3-certifikater til webserviceadgang udstedes af **Den Danske Stat** via [Nets/MitID Erhverv](https://erhverv.mitid.dk). Certifikatet skal registreres hos STIL før brug.
@@ -114,6 +141,18 @@ Den private nøgle genereres lokalt ved certifikatansøgningen og leveres typisk
 openssl pkcs12 -in certifikat.pfx -nocerts -nodes -out private.key
 openssl pkcs12 -in certifikat.pfx -clcerts -nokeys -out certifikat.cer
 ```
+
+---
+
+## Svarverifikation
+
+Hvert SOAP-svar fra STIL verificeres automatisk, inden det behandles. Verifikationen består af tre trin:
+
+1. **Certifikatkæde** — serverens OCES3-certifikat kontrolleres mod `Den Danske Stat OCES udstedende-CA 1` og `Den Danske Stat OCES rod-CA`, som er inkluderet i mappen `ca/`. Certifikatets gyldighed (udløbsdato) tjekkes ligeledes.
+2. **Digest-værdier** — SHA256-digest for hvert signeret element (Body, Timestamp, MessageID m.fl.) beregnes og sammenlignes med de værdier serveren har angivet i signaturen.
+3. **RSA-SHA256 signatur** — `SignatureValue` verificeres med serverens offentlige nøgle mod det kanoniserede `SignedInfo`-element.
+
+Hvis et af trinene fejler, afbrydes kaldet med en fejlmeddelelse og exit-kode 1. CA-certifikaterne hentes fra [ca1.gov.dk](https://www.ca1.gov.dk/certifikater/) og kan fornyes ved at erstatte filerne i `ca/`.
 
 ---
 

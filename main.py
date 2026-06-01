@@ -10,16 +10,20 @@ import base64
 import contextlib
 import hashlib
 import io
+import logging
 import os
 import ssl
 import tempfile
+import time
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.exceptions import InvalidSignature
 from dotenv import load_dotenv
 from lxml import etree
 import requests
@@ -32,6 +36,25 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_file  = os.getenv("LOG_FILE")
+
+_handlers: list[logging.Handler] = [logging.StreamHandler()]
+if _log_file:
+    _handlers.append(logging.FileHandler(_log_file, encoding="utf-8"))
+
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=_handlers,
+)
+log = logging.getLogger(__name__)
+
 _cert_env = os.getenv("CERT_FILE")
 _key_env  = os.getenv("KEY_FILE")
 if not _cert_env or not _key_env:
@@ -39,8 +62,10 @@ if not _cert_env or not _key_env:
         "CERT_FILE og KEY_FILE skal være defineret i .env eller som miljøvariabler."
     )
 
-CERT_FILE = Path(_cert_env)
-KEY_FILE  = Path(_key_env)
+CERT_FILE  = Path(_cert_env)
+KEY_FILE   = Path(_key_env)
+CA_ROOT    = BASE_DIR / "ca" / "oces-root-ca.pem"
+CA_INTER   = BASE_DIR / "ca" / "oces-intermediate-ca.pem"
 
 UDBYDER_SYSTEM_ID = os.getenv("UDBYDER_SYSTEM_ID")
 if not UDBYDER_SYSTEM_ID:
@@ -84,12 +109,19 @@ def _new_id(prefix: str) -> str:
 
 
 def _exc_c14n(element: etree._Element) -> bytes:
-    """Eksklusiv C14N-serialisering af elementet. Bevarer arvede namespaces via deepcopy."""
+    """Eksklusiv C14N til signering af udgående elementer (bevarer arvede namespaces via deepcopy)."""
     buf = io.BytesIO()
     etree.ElementTree(deepcopy(element)).write_c14n(
         buf, exclusive=True, with_comments=False
     )
     return buf.getvalue()
+
+
+def _exc_c14n_in_context(element: etree._Element, inclusive_prefixes: list[str] | None = None) -> bytes:
+    """Eksklusiv C14N til verifikation af indgående elementer.
+    inclusive_prefixes: navnerum-præfikser der altid inkluderes (ec:InclusiveNamespaces PrefixList)."""
+    return etree.tostring(element, method="c14n", exclusive=True,
+                          inclusive_ns_prefixes=inclusive_prefixes or [])
 
 
 def _sha256_b64(data: bytes) -> str:
@@ -235,11 +267,125 @@ def _apply_signature(
 
 
 # ---------------------------------------------------------------------------
+# Verifikation af SOAP-svarets WS-Security signatur
+# ---------------------------------------------------------------------------
+
+def _load_ca_cert(path: Path) -> x509.Certificate:
+    return x509.load_pem_x509_certificate(path.read_bytes())
+
+
+def _verify_cert_chain(server_cert: x509.Certificate) -> None:
+    """Verificer at serverens certifikat er udstedt af Den Danske Stats OCES CA."""
+    inter = _load_ca_cert(CA_INTER)
+    root  = _load_ca_cert(CA_ROOT)
+    now   = datetime.now(timezone.utc)
+
+    for cert, label in [
+        (server_cert, "Serverens certifikat"),
+        (inter,       "Mellemliggende CA"),
+    ]:
+        if not (cert.not_valid_before_utc <= now <= cert.not_valid_after_utc):
+            raise ValueError(f"{label}: certifikatet er udløbet eller endnu ikke gyldigt.")
+
+    cn = server_cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value
+    log.debug("Certifikat-CN: %s — udløber %s",
+              cn, server_cert.not_valid_after_utc.strftime("%Y-%m-%d"))
+
+    # verify_directly_issued_by håndterer automatisk RSA-PSS, RSA-PKCS1v15 og ECDSA
+    try:
+        server_cert.verify_directly_issued_by(inter)
+    except Exception:
+        raise ValueError("Serverens certifikat er ikke udstedt af den forventede OCES udstedende CA.")
+    try:
+        inter.verify_directly_issued_by(root)
+    except Exception:
+        raise ValueError("Den mellemliggende CA er ikke udstedt af OCES rod-CA.")
+
+    log.debug("Certifikatkæde OK: %s → OCES udstedende CA → OCES rod-CA", cn)
+
+
+def _find_by_any_id(root: etree._Element, id_value: str) -> etree._Element:
+    """Find element med wsu:Id eller standard Id-attribut (uanset namespace)."""
+    hits = root.xpath(f"//*[@*[local-name()='Id']='{id_value}']")
+    if not hits:
+        raise ValueError(f"Intet element med Id='{id_value}' i svaret.")
+    return hits[0]
+
+
+def verify_response_signature(xml_text: str) -> None:
+    """
+    Verificerer WS-Security signaturen på SOAP-svaret fra STIL.
+    Kontrollerer: certifikatkæde → OCES CA, digest-værdier og RSA-SHA256 signatur.
+    Kaster ValueError hvis noget ikke stemmer.
+    """
+    root = etree.fromstring(xml_text.encode())
+
+    # 1. Hent serverens certifikat fra BinarySecurityToken
+    bst_els = root.xpath("//wsse:BinarySecurityToken", namespaces={"wsse": _NS["wsse"]})
+    if not bst_els:
+        raise ValueError("Intet BinarySecurityToken i svaret — kan ikke verificere signatur.")
+    server_cert_der = base64.b64decode(bst_els[0].text.strip())
+    server_cert = x509.load_der_x509_certificate(server_cert_der)
+
+    # 2. Verificer certifikatkæden mod OCES CA
+    _verify_cert_chain(server_cert)
+
+    # 3. Find ds:Signature og ds:SignedInfo
+    sig_els = root.xpath("//ds:Signature", namespaces={"ds": _NS["ds"]})
+    if not sig_els:
+        raise ValueError("Ingen ds:Signature i svaret.")
+    sig = sig_els[0]
+    si  = sig.find(f"{{{_NS['ds']}}}SignedInfo")
+
+    # 4. Verificer digest for hvert signeret element
+    _EC14N_NS = "http://www.w3.org/2001/10/xml-exc-c14n#"
+
+    # Læs PrefixList fra CanonicalizationMethod (bruges til C14N af SignedInfo)
+    c14n_method = si.find(f"{{{_NS['ds']}}}CanonicalizationMethod")
+    c14n_inc    = c14n_method.find(f"{{{_EC14N_NS}}}InclusiveNamespaces")
+    si_prefixes = c14n_inc.get("PrefixList", "").split() if c14n_inc is not None else []
+    for ref in si.findall(f"{{{_NS['ds']}}}Reference"):
+        uri      = ref.get("URI", "")
+        elem_id  = uri.lstrip("#")
+        elem     = _find_by_any_id(root, elem_id)
+
+        # Læs InclusiveNamespaces PrefixList fra Transform-elementet
+        inc_ns_el = ref.find(
+            f"{{{_NS['ds']}}}Transforms"
+            f"/{{{_NS['ds']}}}Transform"
+            f"/{{{_EC14N_NS}}}InclusiveNamespaces"
+        )
+        prefixes = inc_ns_el.get("PrefixList", "").split() if inc_ns_el is not None else []
+
+        beregnet  = _sha256_b64(_exc_c14n_in_context(elem, prefixes))
+        forventet = ref.findtext(f"{{{_NS['ds']}}}DigestValue", "").strip()
+        if beregnet != forventet:
+            raise ValueError(f"Digest-mismatch for element '{uri}': svaret er blevet ændret.")
+
+    # 5. Verificer signaturen på SignedInfo med serverens offentlige nøgle
+    sig_value = base64.b64decode(
+        sig.findtext(f"{{{_NS['ds']}}}SignatureValue", "").strip()
+    )
+    try:
+        server_cert.public_key().verify(
+            sig_value, _exc_c14n_in_context(si, si_prefixes), padding.PKCS1v15(), hashes.SHA256()
+        )
+    except InvalidSignature:
+        raise ValueError("SignatureValue er ugyldig — svaret er ikke fra STIL.")
+
+    log.debug("WS-Security signatur OK — alle digests og SignatureValue verificeret")
+
+
+# ---------------------------------------------------------------------------
 # HTTP-transport
 # ---------------------------------------------------------------------------
 
 def _post(envelope: etree._Element, action: str, cert_der: bytes, key_pem: bytes) -> str:
     xml_bytes = etree.tostring(envelope, xml_declaration=True, encoding="UTF-8")
+    operation = action.rsplit("/", 1)[-1]
+    log.debug("Sender %s (%d bytes) → %s", operation, len(xml_bytes), ENDPOINT)
+
+    t0 = time.monotonic()
     with _tls_cert(cert_der, key_pem) as (cert_path, key_path):
         resp = requests.post(
             ENDPOINT,
@@ -248,10 +394,20 @@ def _post(envelope: etree._Element, action: str, cert_der: bytes, key_pem: bytes
                 "Content-Type": f'application/soap+xml; charset=UTF-8; action="{action}"'
             },
             cert=(cert_path, key_path),
-            verify=True,  # TLS-servertcertifikat verificeres; SOAP-svarets signatur kontrolleres ikke
+            verify=True,
         )
+    elapsed = time.monotonic() - t0
+
+    log.debug("Svar modtaget: HTTP %d, %d bytes, %.2fs",
+              resp.status_code, len(resp.content), elapsed)
+
     if not resp.ok:
+        log.error("HTTP %d fra %s: %s", resp.status_code, operation, resp.text[:500])
         raise RuntimeError(f"HTTP {resp.status_code}:\n{resp.text}")
+
+    verify_response_signature(resp.text)
+    log.info("%-30s HTTP %d  %6.2fs  %s KB",
+             operation, resp.status_code, elapsed, len(resp.content) // 1024)
     return resp.text
 
 
@@ -418,7 +574,7 @@ Eksempler:
         pretty = etree.tostring(tree, pretty_print=True, encoding="unicode")
         sti    = output_dir / filnavn
         sti.write_text(pretty, encoding="utf-8")
-        print(f"  Gemt: {sti}")
+        log.info("Gemt: %s (%d KB)", sti, len(pretty) // 1024)
 
     def kald(label: str, kald_fn, *kald_args) -> bool:
         """Udfør ét servicekald og håndtér fejl pænt. Returnerer True ved succes."""
@@ -426,14 +582,19 @@ Eksempler:
             gem(label, kald_fn(*kald_args))
             return True
         except RuntimeError as e:
-            # Udpak SOAP-fejlbeskeden hvis muligt
             tekst = str(e)
             try:
                 rod = etree.fromstring(tekst.split("\n", 1)[1].encode())
                 fejl = rod.findtext(".//{http://www.w3.org/2003/05/soap-envelope}Text") or tekst
             except Exception:
                 fejl = tekst
-            print(f"  FEJL: {fejl}")
+            log.error("Servicekald fejlede: %s", fejl)
+            return False
+        except ValueError as e:
+            log.error("Signaturverifikation fejlede: %s", e)
+            return False
+        except Exception as e:
+            log.error("Uventet fejl: %s: %s", type(e).__name__, e)
             return False
 
     fejl_antal = 0
@@ -448,11 +609,11 @@ Eksempler:
                 "Angiv mindst ét institutionsnummer, eller sæt INSTITUTIONS i .env"
             )
         for instnr in institutioner:
-            print(f"Henter '{args.funktion}' for institution {instnr}...")
+            log.info("Henter '%s' for institution %s", args.funktion, instnr)
             if not kald(f"eksport_{args.funktion}_{instnr}.xml", fn, instnr):
                 fejl_antal += 1
     else:
-        print(f"Kalder '{args.funktion}'...")
+        log.info("Kalder '%s'", args.funktion)
         if not kald(f"eksport_{args.funktion}.xml", fn):
             fejl_antal += 1
 
