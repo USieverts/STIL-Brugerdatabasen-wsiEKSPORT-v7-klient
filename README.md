@@ -58,10 +58,10 @@ INSTITUTIONS=101088,101155
 LOG_LEVEL=INFO
 
 # Valgfri logfil — udelad for kun at logge til konsollen
-# LOG_FILE=stileksport.log
+# LOG_FILE=wsieksport.log
 ```
 
-> **Vigtigt:** Certifikatet og den private nøgle bør ligge **offline** og **uden for projektmappen**.
+> **Vigtigt:** Certifikatet og den private nøgle bør ligge offline og uden for projektmappen.
 
 ---
 
@@ -89,7 +89,8 @@ python main.py <funktion> [instnr …] [--output MAPPE]
 
 ```bash
 # Test forbindelsen
-python main.py hello #OBS! STIL's server returnerer konsekvent HTTP 500 på den operation. Brug i stedet aftaler-fuld eller aftaler-lille til at teste at forbindelsen virker.
+python main.py hello 
+#OBS! STIL's server returnerer konsekvent HTTP 500 på den operation. Brug i stedet eksv. aftaler-lille til at teste at forbindelsen virker.
 
 # Hent fuld-myndighed for specifikke institutioner
 python main.py fuld-myndighed 101088 101155
@@ -117,7 +118,7 @@ Klienten logger til konsollen via Pythons standard `logging`-modul. Adfærden st
 LOG_LEVEL=INFO
 
 # Valgfri logfil — udelad for kun at logge til konsollen
-# LOG_FILE=stileksport.log
+LOG_FILE=wsieksport.log
 ```
 
 | Niveau | Hvad logges |
