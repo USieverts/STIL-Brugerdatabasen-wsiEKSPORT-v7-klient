@@ -1,8 +1,8 @@
 # STIL wsiEKSPORT v7 — Python SOAP-klient
 
-Python-klient til STILs [Brugerdatabasen BPI-webservice wsiEKSPORT v7](https://viden.stil.dk/spaces/INFRA2/pages/2360658/Unilogin+SkoleGrunddata+BPI-webservices).
+Python-klienter til STILs [Brugerdatabasen BPI-webservices](https://viden.stil.dk/spaces/INFRA2/pages/2360658/Unilogin+SkoleGrunddata+BPI-webservices).
 
-Klienten håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256, eksklusiv C14N) og understøtter alle ni operationer i webservicen. Hvert svar verificeres automatisk mod STILs OCES3-certifikatkæde.
+Klienterne håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256, eksklusiv C14N) og understøtter alle operationer i den pågældende webservice. Svar verificeres automatisk mod STILs OCES3-certifikatkæde.
 
 ---
 
@@ -67,45 +67,95 @@ LOG_LEVEL=INFO
 
 ## Brug
 
-```
-python main.py <funktion> [instnr …] [--output MAPPE]
-```
+Projektet indeholder tre separate klienter, én pr. STIL-webservice:
 
-### Tilgængelige funktioner
-
-| Funktion | Beskrivelse | Kræver instnr |
+| Script | Service | Formål |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | Nej |
-| `lille` | Lille eksport (grupper, medlemmer, kontaktpersoner) | Ja |
-| `mellem` | Mellemstor eksport (som lille + CPR-numre) | Ja |
-| `fuld` | Fuld eksport for én institution | Ja |
-| `fuld-myndighed` | Fuld eksport på myndighedsniveau | Ja |
-| `aftaler-lille` | Liste over dataaftaler for lille eksport | Nej |
-| `aftaler-mellem` | Liste over dataaftaler for mellemstor eksport | Nej |
-| `aftaler-fuld` | Liste over dataaftaler for fuld eksport | Nej |
-| `aftaler-fuld-myndighed` | Liste over dataaftaler for fuld myndighed | Nej |
+| `wsieksport.py` | wsiEKSPORT v7 | Masseeksport af grupper, medlemmer og kontaktpersoner |
+| `wsiinst.py` | wsiINST v6 | Opslag på institutioner, grupper og brugertilknytninger |
+| `wsibruger.py` | wsiBRUGER v7 | Opslag på bruger–kontaktperson-relationer |
 
-### Eksempler
+Alle tre scripts gemmer svar som pretty-printed XML og understøtter `--output MAPPE`. Kald `python <script>.py --help` for fuld hjælp.
+
+---
+
+### wsieksport.py — wsiEKSPORT v7
+
+```
+python wsieksport.py <funktion> [instnr …] [--output MAPPE]
+```
+
+| Funktion | Beskrivelse | Parametre |
+|---|---|---|
+| `hello` | Test certifikatforbindelsen | — |
+| `lille` | Lille eksport (grupper, medlemmer, kontaktpersoner) | instnr … |
+| `mellem` | Mellemstor eksport (som lille + CPR-numre) | instnr … |
+| `fuld` | Fuld eksport for én institution | instnr … |
+| `fuld-myndighed` | Fuld eksport på myndighedsniveau | instnr … |
+| `aftaler-lille` | Dataaftaler for lille eksport | — |
+| `aftaler-mellem` | Dataaftaler for mellemstor eksport | — |
+| `aftaler-fuld` | Dataaftaler for fuld eksport | — |
+| `aftaler-fuld-myndighed` | Dataaftaler for fuld myndighed | — |
 
 ```bash
-# Test forbindelsen
-python main.py hello 
-#OBS! STIL's server returnerer konsekvent HTTP 500 på den operation. Brug i stedet eksv. aftaler-lille til at teste at forbindelsen virker.
-
-# Hent fuld-myndighed for specifikke institutioner
-python main.py fuld-myndighed 101088 101155
-
-# Brug standardlisten fra .env (INSTITUTIONS=...)
-python main.py fuld-myndighed
-
-# Gem filer i en bestemt mappe
-python main.py fuld-myndighed 101088 --output C:\eksporter\
-
-# Se alle dataaftaler for fuld eksport
-python main.py aftaler-fuld
+python wsieksport.py fuld-myndighed 101088 101155
+python wsieksport.py fuld-myndighed          # bruger INSTITUTIONS fra .env
+python wsieksport.py fuld-myndighed 101088 --output C:\eksporter\
+python wsieksport.py aftaler-fuld
 ```
 
-Output gemmes som pretty-printed XML med filnavnet `eksport_<funktion>_<instnr>.xml` (eller `eksport_<funktion>.xml` for funktioner uden instnr).
+> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug `aftaler-fuld` til forbindelsestest.
+
+---
+
+### wsiinst.py — wsiINST v6
+
+```
+python wsiinst.py <funktion> [instnr …] [--gruppe ID] [--bruger ID] [--output MAPPE]
+```
+
+| Funktion | Beskrivelse | Parametre |
+|---|---|---|
+| `hello` | Test certifikatforbindelsen | — |
+| `grupper` | Institutionens grupper | instnr |
+| `brugere-i-gruppe` | Medlemmer af en gruppe | instnr `--gruppe ID` |
+| `institution` | Oplysninger om én institution | instnr |
+| `institutioner` | Oplysninger om flere institutioner | instnr … |
+| `inst-bruger` | En brugers institutionstilknytning | `--bruger ID` [instnr] |
+| `hierarki` | Institutionshierarki | instnr |
+| `aftaler` | Dataaftaler | — |
+
+```bash
+python wsiinst.py grupper 101088
+python wsiinst.py brugere-i-gruppe 101088 --gruppe dk:stil:bs:gruppe:12345
+python wsiinst.py institutioner 101088 101155 101126
+python wsiinst.py inst-bruger --bruger jens1234 --institution 101088
+python wsiinst.py hierarki 101088
+python wsiinst.py aftaler
+```
+
+---
+
+### wsibruger.py — wsiBRUGER v7
+
+```
+python wsibruger.py <funktion> [instnr] [--bruger ID] [--institution NR] [--output MAPPE]
+```
+
+| Funktion | Beskrivelse | Parametre |
+|---|---|---|
+| `hello` | Test certifikatforbindelsen | — |
+| `kontakter` | Kontaktpersoner tilknyttet en elev | instnr `--bruger ID` |
+| `elever` | Elever tilknyttet en kontaktperson | `--bruger ID` [`--institution NR`] |
+| `tilknytninger` | Alle institutioner og roller for en bruger | `--bruger ID` |
+| `aftaler` | Dataaftaler | — |
+
+```bash
+python wsibruger.py kontakter 101088 --bruger jens1234
+python wsibruger.py elever --bruger kontakt5678 --institution 101088
+python wsibruger.py tilknytninger --bruger jens1234
+python wsibruger.py aftaler
+```
 
 ---
 
@@ -138,7 +188,7 @@ Eksempel på INFO-output:
 
 ## Certifikat og nøgle
 
-OCES3-certifikater til webserviceadgang udstedes af **Den Danske Stat** via [Nets/MitID Erhverv](https://erhverv.mitid.dk). 
+OCES3-certifikater til webserviceadgang udstedes af Den Danske Stat via [Nets/MitID Erhverv](https://erhverv.mitid.dk). 
 
 Se STILs vejledning: [Certifikatsikkerhed](https://viden.stil.dk/spaces/INFRA2/pages/314540219/Certifikatsikkerhed)
 
@@ -169,7 +219,9 @@ CA-certifikaterne hentes fra [ca1.gov.dk](https://www.ca1.gov.dk/certifikater/) 
 
 ```
 .
-├── main.py              # SOAP-klient og kommandolinjegrænseflade
+├── wsieksport.py        # SOAP-klient til wsiEKSPORT v7 (masseeksport)
+├── wsiinst.py           # SOAP-klient til wsiINST v6 (institutionsopslag)
+├── wsibruger.py         # SOAP-klient til wsiBRUGER v7 (bruger–kontakt-relationer)
 ├── ca/
 │   ├── oces-root-ca.pem         # Den Danske Stat OCES rod-CA
 │   └── oces-intermediate-ca.pem # Den Danske Stat OCES udstedende-CA 1
