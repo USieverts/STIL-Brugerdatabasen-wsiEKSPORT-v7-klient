@@ -1,4 +1,4 @@
-# STIL wsiEKSPORT v7 — Python SOAP-klient
+# STIL BPI-webservices — Python SOAP-klienter
 
 Python-klienter til STILs [Brugerdatabasen BPI-webservices](https://viden.stil.dk/spaces/INFRA2/pages/2360658/Unilogin+SkoleGrunddata+BPI-webservices).
 
@@ -67,15 +67,17 @@ LOG_LEVEL=INFO
 
 ## Brug
 
-Projektet indeholder tre separate klienter, én pr. STIL-webservice:
+Projektet indeholder fem separate klienter, én pr. STIL-webservice:
 
 | Script | Service | Formål |
 |---|---|---|
 | `wsieksport.py` | wsiEKSPORT v7 | Masseeksport af grupper, medlemmer og kontaktpersoner |
 | `wsiinst.py` | wsiINST v6 | Opslag på institutioner, grupper og brugertilknytninger |
 | `wsibruger.py` | wsiBRUGER v7 | Opslag på bruger–kontaktperson-relationer |
+| `wsiidentifikation.py` | wsiIDENTIFIKATION v6 | Mapping mellem UniID og CPR-nummer |
+| `wsaimport.py` | wsaIMPORT v8 | Import af brugere og grupper til SkoleGrunddata |
 
-Alle tre scripts gemmer svar som pretty-printed XML og understøtter `--output MAPPE`. Kald `python <script>.py --help` for fuld hjælp.
+Alle scripts gemmer svar som pretty-printed XML og understøtter `--output MAPPE`. Kald `python <script>.py --help` for fuld hjælp.
 
 ---
 
@@ -159,6 +161,56 @@ python wsibruger.py aftaler
 
 ---
 
+### wsiidentifikation.py — wsiIDENTIFIKATION v6
+
+```
+python wsiidentifikation.py <funktion> [--cpr XXXXXXXXXX] [--bruger ID] [--output MAPPE]
+```
+
+| Funktion | Beskrivelse | Parametre |
+|---|---|---|
+| `hello` | Test certifikatforbindelsen | — |
+| `brugerid` | UniLogin-brugerid (UniID) for et CPR-nummer | `--cpr XXXXXXXXXX` |
+| `cpr` | CPR-nummer for et UniLogin-brugerid | `--bruger ID` |
+
+```bash
+python wsiidentifikation.py brugerid --cpr 1234567890
+python wsiidentifikation.py cpr --bruger jens1234
+```
+
+> **OBS:** Svarfiler indeholder CPR-numre og er gitignored som `idi_*.xml`. Håndtér dem i overensstemmelse med persondatalovgivningen.
+
+> `hello` returnerer konsekvent HTTP 500 fra STILs server.
+
+---
+
+### wsaimport.py — wsaIMPORT v8
+
+```
+python wsaimport.py <funktion> [--xml FIL] [--output MAPPE]
+```
+
+| Funktion | Beskrivelse | Parametre |
+|---|---|---|
+| `hello` | Test certifikatforbindelsen | — |
+| `fuld` | Fuld import — erstatter alle eksisterende data for institutionen | `--xml FIL` |
+| `delta` | Delta-import af ændrede brugere (primær importmetode) | `--xml FIL` |
+| `slet` | Slet-import — fjerner angivne brugere fra SkoleGrunddata | `--xml FIL` |
+| `aftaler` | Dataaftaler for udbyderssystemet | — |
+
+```bash
+python wsaimport.py fuld --xml skoledata.xml
+python wsaimport.py delta --xml aendringer.xml
+python wsaimport.py slet --xml slettes.xml
+python wsaimport.py aftaler
+```
+
+> **OBS:** Import-operationerne skriver direkte til STILs Brugerdatabase. Kontrollér altid input-XML grundigt, inden du kører. Se STILs [SkoleGrunddata-dokumentation](https://viden.stil.dk/spaces/INFRA2/pages/2360666) for det forventede XML-format.
+
+> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug `aftaler` til forbindelsestest.
+
+---
+
 ## Logging
 
 Klienten logger til konsollen via Pythons standard `logging`-modul. Adfærden styres med to valgfrie `.env`-variabler:
@@ -222,6 +274,8 @@ CA-certifikaterne hentes fra [ca1.gov.dk](https://www.ca1.gov.dk/certifikater/) 
 ├── wsieksport.py        # SOAP-klient til wsiEKSPORT v7 (masseeksport)
 ├── wsiinst.py           # SOAP-klient til wsiINST v6 (institutionsopslag)
 ├── wsibruger.py         # SOAP-klient til wsiBRUGER v7 (bruger–kontakt-relationer)
+├── wsiidentifikation.py # SOAP-klient til wsiIDENTIFIKATION v6 (UniID ↔ CPR)
+├── wsaimport.py         # SOAP-klient til wsaIMPORT v8 (import til SkoleGrunddata)
 ├── ca/
 │   ├── oces-root-ca.pem         # Den Danske Stat OCES rod-CA
 │   └── oces-intermediate-ca.pem # Den Danske Stat OCES udstedende-CA 1

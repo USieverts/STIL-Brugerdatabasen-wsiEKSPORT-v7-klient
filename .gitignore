@@ -1,8 +1,12 @@
 # Miljøvariabler — må aldrig committes
 .env
 
-# Eksportfiler - må aldrig comittes
+# Output-filer fra scripts — må aldrig committes
 eksport_*.xml
+inst_*.xml
+bru_*.xml
+idi_*.xml
+imp_*.xml
 
 # Logfiler
 *.log
