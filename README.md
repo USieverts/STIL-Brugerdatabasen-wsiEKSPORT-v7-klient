@@ -2,7 +2,11 @@
 
 Python-klienter til STILs [Brugerdatabasen BPI-webservices](https://viden.stil.dk/spaces/INFRA2/pages/2360658/Unilogin+SkoleGrunddata+BPI-webservices).
 
-Klienterne håndterer WS-Security-autentificering med OCES3-certifikat (RSA-SHA256, eksklusiv C14N) og understøtter alle operationer i den pågældende webservice. Svar verificeres automatisk mod STILs OCES3-certifikatkæde.
+Klienterne håndterer WS-Security-autentificering med OCES3-certifikat og understøtter alle operationer i den pågældende webservice. Svar verificeres automatisk mod STILs OCES3-certifikatkæde.
+
+Klienterne stilles til rådighed uden nogen form for garanti (“as is”) og kan frit anvendes til test, evaluering og videreudvikling. 
+
+Det er op til den enkelte anvender at implementere og opretholde sikker opbevaring og beskyttelse af OCES3-certifikatet og den tilhørende private nøgle i overenstemmelse med gældende sikkerhedspolitikker og lokale compliance-krav.
 
 ---
 
@@ -61,7 +65,7 @@ LOG_LEVEL=INFO
 # LOG_FILE=wsieksport.log
 ```
 
-> **Vigtigt:** Certifikatet og den private nøgle bør ligge offline og uden for projektmappen.
+> **Vigtigt:** Certifikatet og den private nøgle bør som minimum opbevare offline og uden for projektmappen.
 
 ---
 
@@ -89,7 +93,7 @@ python wsieksport.py <funktion> [instnr …] [--output MAPPE]
 
 | Funktion | Beskrivelse | Parametre |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | — |
+| ~~`hello`~~ | ~~Test certifikatforbindelsen~~ | — |
 | `lille` | Lille eksport (grupper, medlemmer, kontaktpersoner) | instnr … |
 | `mellem` | Mellemstor eksport (som lille + CPR-numre) | instnr … |
 | `fuld` | Fuld eksport for én institution | instnr … |
@@ -118,7 +122,7 @@ python wsiinst.py <funktion> [instnr …] [--gruppe ID] [--bruger ID] [--output 
 
 | Funktion | Beskrivelse | Parametre |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | — |
+| ~~`hello`~~ | ~~Test certifikatforbindelsen~~ | — |
 | `grupper` | Institutionens grupper | instnr |
 | `brugere-i-gruppe` | Medlemmer af en gruppe | instnr `--gruppe ID` |
 | `institution` | Oplysninger om én institution | instnr |
@@ -136,6 +140,8 @@ python wsiinst.py hierarki 101088
 python wsiinst.py aftaler
 ```
 
+> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug i stetdet `aftaler` til forbindelsestest.
+
 ---
 
 ### wsibruger.py — wsiBRUGER v7
@@ -146,7 +152,7 @@ python wsibruger.py <funktion> [instnr] [--bruger ID] [--institution NR] [--outp
 
 | Funktion | Beskrivelse | Parametre |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | — |
+| ~~`hello`~~ | ~~Test certifikatforbindelsen~~ | — |
 | `kontakter` | Kontaktpersoner tilknyttet en elev | instnr `--bruger ID` |
 | `elever` | Elever tilknyttet en kontaktperson | `--bruger ID` [`--institution NR`] |
 | `tilknytninger` | Alle institutioner og roller for en bruger | `--bruger ID` |
@@ -159,6 +165,8 @@ python wsibruger.py tilknytninger --bruger jens1234
 python wsibruger.py aftaler
 ```
 
+> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug i stetdet `aftaler` til forbindelsestest.
+
 ---
 
 ### wsiidentifikation.py — wsiIDENTIFIKATION v6
@@ -169,7 +177,7 @@ python wsiidentifikation.py <funktion> [--cpr XXXXXXXXXX] [--bruger ID] [--outpu
 
 | Funktion | Beskrivelse | Parametre |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | — |
+| ~~`hello`~~ | ~~Test certifikatforbindelsen~~ | — |
 | `brugerid` | UniLogin-brugerid (UniID) for et CPR-nummer | `--cpr XXXXXXXXXX` |
 | `cpr` | CPR-nummer for et UniLogin-brugerid | `--bruger ID` |
 
@@ -192,7 +200,7 @@ python wsaimport.py <funktion> [--xml FIL] [--output MAPPE]
 
 | Funktion | Beskrivelse | Parametre |
 |---|---|---|
-| `hello` | Test certifikatforbindelsen | — |
+| ~~`hello`~~ | ~~Test certifikatforbindelsen~~ | — |
 | `fuld` | Fuld import — erstatter alle eksisterende data for institutionen | `--xml FIL` |
 | `delta` | Delta-import af ændrede brugere (primær importmetode) | `--xml FIL` |
 | `slet` | Slet-import — fjerner angivne brugere fra SkoleGrunddata | `--xml FIL` |
@@ -207,7 +215,7 @@ python wsaimport.py aftaler
 
 > **OBS:** Import-operationerne skriver direkte til STILs Brugerdatabase. Kontrollér altid input-XML grundigt, inden du kører. Se STILs [SkoleGrunddata-dokumentation](https://viden.stil.dk/spaces/INFRA2/pages/2360666) for det forventede XML-format.
 
-> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug `aftaler` til forbindelsestest.
+> `hello` returnerer konsekvent HTTP 500 fra STILs server. Brug i stetdet `aftaler` til forbindelsestest.
 
 ---
 
