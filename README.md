@@ -6,7 +6,7 @@ Klienterne håndterer WS-Security-autentificering med OCES3-certifikat og unders
 
 Klienterne stilles til rådighed uden nogen form for garanti (“as is”) og kan frit anvendes til test, evaluering og videreudvikling. 
 
-Det er op til den enkelte anvender at sikre implementering og opretholdelse af opbevaring og beskyttelse af OCES3-certifikatet og den tilhørende private nøgle er i overenstemmelse med lokale sikkerhedspolitikker og compliance-krav.
+Den enkelte anvender er selv ansvarlig for at sikre, at implementering samt opbevaring og beskyttelse af OCES3-certifikatet og den tilhørende private nøgle sker i overensstemmelse med egne sikkerhedspolitikker og compliancekrav.
 
 ---
 
